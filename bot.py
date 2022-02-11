@@ -1,52 +1,50 @@
-import sqlite3
 
-import telebot
-import time
+from db import Database
+from aiogram import Bot, Dispatcher, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.utils import executor
 
 TOKEN = '5250676031:AAH5cZ7YFzDdgyBS8ijK0l9AD1FKEVVTbrg'
-bot = telebot.TeleBot(TOKEN)
-conn = sqlite3.connect('hse_curator.db', check_same_thread=False)
-cursor = conn.cursor()
+bot = Bot(TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
+db = Database('hse_curator.db')
+
 name = ''
-age = ''
+age = -1
 
-# @bot.message_handler(content_types=['text'])
-# def get_text_messages(message):
-#     if message.text == "Привет":
-#         bot.send_message(message.from_user.id, "Привет, чем я могу тебе помочь?")
-#     elif message.text == "/help":
-#         bot.send_message(message.from_user.id, "Напиши привет")
-#     else:
-#         bot.send_message(message.from_user.id, "Я тебя не понимаю. Напиши /help.")
+class Form(StatesGroup):
+    name = State()
 
-@bot.message_handler(content_types=['text'])
-def get_text_messages(message):
-    if  message.text == "/reg":
-        cursor.execute('SELECT tg_username FROM users WHERE tg_username=?', [str(message.from_user.username)])
-        if cursor.fetchone():
-            bot.send_message(message.from_user.id, "Ты уже зареган!")
-        else:
-            bot.send_message(message.from_user.id, "Введи свое имя:")
-            bot.register_next_step_handler(message, get_name)
+@dp.message_handler(commands='reg')
+async def get_text_messages(message):
+    if db.user_exitst(message.from_user.username):
+        await bot.send_message(message.from_user.id, 'Ты уже зарегистрирован!')
     else:
-        bot.send_message(message.from_user.id, "Напиши /reg")
+        await get_name(message)
+        #рега
 
-def get_name(message):
-    global name
+@dp.message_handler()
+async def get_name(message: types.message):
+    await Form.name.set()
+    await bot.send_message(message.from_user.id, 'Как тебя зовут?')
+
+@dp.message_handler(state= Form.name)
+async def process_name(message: types.message, state:FSMContext):
     name = message.text
-    bot.send_message(message.from_user.id, "Сколько те лет?")
-    bot.register_next_step_handler(message, get_age)
+    await state.finish()
+    db.add_user(message.from_user.username, name)
+    await bot.send_message(message.from_user.id, 'Ты зарегистрирован!')
 
-def get_age(message):
-    global age
-    age = int(message.text)
-    bot.send_message(message.from_user.id, "Привет," + name + " Тебе " + str(age) + " лет \nТы зареган!")
-    reg_to_db(message)
+@dp.message_handler(commands=['menu'])
+async def show_menu(message: types.message):
+    await message.reply('меню')
 
-def reg_to_db(message):
+@dp.message_handler(commands=['profile'])
+async def show_profile(message: types.message):
+    await bot.send_message(message.from_user.id, 'твой профиль')
 
-    cursor.execute('INSERT INTO users (tg_username, person_name, points, answered_questions_id) VALUES (?, ?, ?, ?)', (str(message.from_user.username), name, 0, -1))
-    conn.commit()
-
-
-bot.polling(none_stop=True, interval=0)
+if __name__ == '__main__':
+    executor.start_polling(dp)
