@@ -4,6 +4,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils import executor
+import markup
 
 TOKEN = '5250676031:AAH5cZ7YFzDdgyBS8ijK0l9AD1FKEVVTbrg'
 bot = Bot(TOKEN)
@@ -11,46 +12,92 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 db = Database('hse_curator.db')
 
-name = ''
-age = -1
+current_question_id = 0
 
 
 class Form(StatesGroup):
-    name = State()
+    answer = State()
 
 
-# Проверка на существование в бд, регистрация (просто имя)
-@dp.message_handler(commands='reg')
-async def get_text_messages(message):
-    if db.user_exists(message.from_user.username):
-        await bot.send_message(message.from_user.id, 'Ты уже зарегистрирован!')
+@dp.message_handler(commands='start')
+async def start(message):
+    await bot.send_message(message.from_user.id, 'Привет! Увидел твой профиль в группе для абитуриентов, не ответишь '
+                                                 'мне на пару вопросов про вышку? Собираюсь поступать к вам, '
+                                                 'но пока что вообще не понимаю, что там да как(((')
+    if not db.user_exists(str(message.from_user.username)):
+        db.add_user(str(message.from_user.username))
+    await Form.answer.set()
+
+
+def is_answer_correct(ans, user_id):
+    return ans == db.get_correct_answer_id(db.get_current_question_id(user_id))
+
+
+async def next_question(message):
+    if db.get_current_question_id(message.from_user.username) < db.check_max_id():
+        db.change_current_question_id(message.from_user.username)
+        await bot.send_message(message.from_user.id, db.get_question_text(message.from_user.username))
+        if db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) == 4:
+            await bot.send_message(message.from_user.id,
+                                   db.get_variants(db.get_current_question_id(message.from_user.username)),
+                                   reply_markup=markup.inline_answers4)
+        elif db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) == 3:
+            await bot.send_message(message.from_user.id,
+                                   db.get_variants(db.get_current_question_id(message.from_user.username)),
+                                   reply_markup=markup.inline_answers3)
+        elif db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) == 2:
+            await bot.send_message(message.from_user.id,
+                                   db.get_variants(db.get_current_question_id(message.from_user.username)),
+                                   reply_markup=markup.inline_answers2)
+        elif db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) == 0:
+            await Form.answer.set()
     else:
-        await Form.name.set()
-        await bot.send_message(message.from_user.id, 'Как тебя зовут?')
+        await print_goodbye(message)
 
 
-# Регистрируем имя
-@dp.message_handler(state=Form.name)
-async def process_name(message: types.message, state: FSMContext):
-    name = message.text
+async def print_goodbye(message):
+    await bot.send_message(message.from_user.id,
+                           'Спасибо большое за ответы на мои непростые вопросы! Надеюсь, в скором времени увидимся с '
+                           'тобой уже в стенах вышки!')
+
+
+@dp.message_handler(state=Form.answer)
+async def something_answered(message, state: FSMContext):
     await state.finish()
-    print(message.from_user.username)
-    db.add_user(str(message.from_user.username), name)
-    await bot.send_message(message.from_user.id, 'Ты зарегистрирован!')
+    await next_question(message)
 
 
-# Обработка обращения к менюшке, потом сделаем
-@dp.message_handler(commands=['menu'])
-async def show_menu(message: types.message):
-    await message.reply('меню')
+async def show_reply(message):
+    await bot.send_message(message.from_user.id,
+                           db.get_answer_reply(db.get_current_question_id(message.from_user.username)))
 
 
-# Обработка обращения к профилю, потом сделаем
-@dp.message_handler(commands=['profile'])
-async def show_profile(message: types.message):
-    await bot.send_message(message.from_user.id, 'Твой профиль:')
-    await bot.send_message(message.from_user.id, db.get_name(message.from_user.username) + '\nВсего очков: ' + str(
-        db.get_points(message.from_user.username)))
+@dp.callback_query_handler(text='btn1')
+async def btn1_pressed(message):
+    if not is_answer_correct(1, message.from_user.username):
+        await show_reply(message)
+    await next_question(message)
+
+
+@dp.callback_query_handler(text='btn2')
+async def btn2_pressed(message):
+    if not is_answer_correct(2, message.from_user.username):
+        await show_reply(message)
+    await next_question(message)
+
+
+@dp.callback_query_handler(text='btn3')
+async def btn3_pressed(message):
+    if not is_answer_correct(3, message.from_user.username):
+        await show_reply(message)
+    await next_question(message)
+
+
+@dp.callback_query_handler(text='btn4')
+async def btn4_pressed(message):
+    if not is_answer_correct(4, message.from_user.username):
+        await show_reply(message)
+    await next_question(message)
 
 
 async def shutdown(dispatcher: Dispatcher):
@@ -59,4 +106,4 @@ async def shutdown(dispatcher: Dispatcher):
 
 
 if __name__ == '__main__':
-    executor.start_polling(dp, on_shutdown=shutdown())
+    executor.start_polling(dp)
