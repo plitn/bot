@@ -29,10 +29,12 @@ async def start(message):
     await Form.answer.set()
 
 
+# Checking if answer is correct
 def is_answer_correct(ans, user_id):
     return ans == db.get_correct_answer_id(db.get_current_question_id(user_id))
 
 
+# Gets next questions and answers
 async def next_question(message):
     if db.get_current_question_id(message.from_user.username) < db.check_max_id():
         db.change_current_question_id(message.from_user.username)
@@ -55,23 +57,27 @@ async def next_question(message):
         await print_goodbye(message)
 
 
+# Goodbye at the end of questions
 async def print_goodbye(message):
     await bot.send_message(message.from_user.id,
                            'Спасибо большое за ответы на мои непростые вопросы! Надеюсь, в скором времени увидимся с '
                            'тобой уже в стенах вышки!')
 
 
+# Waiting for user's text answer
 @dp.message_handler(state=Form.answer)
 async def something_answered(message, state: FSMContext):
     await state.finish()
     await next_question(message)
 
 
+# Reply for wrong answer
 async def show_reply(message):
     await bot.send_message(message.from_user.id,
                            db.get_answer_reply(db.get_current_question_id(message.from_user.username)))
 
 
+# 4 methods for buttons being pressed
 @dp.callback_query_handler(text='btn1')
 async def btn1_pressed(message):
     if not is_answer_correct(1, message.from_user.username):
@@ -100,6 +106,7 @@ async def btn4_pressed(message):
     await next_question(message)
 
 
+# Not used. why?
 async def shutdown(dispatcher: Dispatcher):
     await dispatcher.storage.close()
     await dispatcher.storage.wait_closed()
