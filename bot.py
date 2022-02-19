@@ -6,6 +6,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils import executor
 import markup
 
+
 TOKEN = '5250676031:AAH5cZ7YFzDdgyBS8ijK0l9AD1FKEVVTbrg'
 bot = Bot(TOKEN)
 storage = MemoryStorage()
@@ -36,8 +37,7 @@ def is_answer_correct(ans, user_id):
 
 # Gets next questions and answers
 async def next_question(message):
-    if db.get_current_question_id(message.from_user.username) < db.check_max_id():
-        db.change_current_question_id(message.from_user.username)
+    if db.get_current_question_id(message.from_user.username) <= db.check_max_id():
         await bot.send_message(message.from_user.id, db.get_question_text(message.from_user.username))
         if db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) == 4:
             await bot.send_message(message.from_user.id,
@@ -61,12 +61,16 @@ async def next_question(message):
 async def print_goodbye(message):
     await bot.send_message(message.from_user.id,
                            'Спасибо большое за ответы на мои непростые вопросы! Надеюсь, в скором времени увидимся с '
-                           'тобой уже в стенах вышки!')
+                           'тобой уже в стенах вышки!', reply_markup=markup.inline_restart)
+    await bot.send_message(message.from_user.id, 'Вот тебе небольшой подарочек за прохождение вопросов \n'
+                                                 '<a href="https://t.me/addstickers/HSE_MENTORS">Тык</a>',
+                           parse_mode='HTML')
 
 
 # Waiting for user's text answer
 @dp.message_handler(state=Form.answer)
 async def something_answered(message, state: FSMContext):
+    db.change_current_question_id(message.from_user.username)
     await state.finish()
     await next_question(message)
 
@@ -77,33 +81,51 @@ async def show_reply(message):
                            db.get_answer_reply(db.get_current_question_id(message.from_user.username)))
 
 
+@dp.callback_query_handler(text='restart_btn')
+async def restart_pressed(message):
+    db.restart_questions(message.from_user.username)
+    await start(message)
+
+
 # 4 methods for buttons being pressed
 @dp.callback_query_handler(text='btn1')
 async def btn1_pressed(message):
-    if not is_answer_correct(1, message.from_user.username):
+    if not is_answer_correct(1, message.from_user.username) and db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) != 0:
         await show_reply(message)
-    await next_question(message)
+        await next_question(message)
+    else:
+        db.change_current_question_id(message.from_user.username)
+        await next_question(message)
 
 
 @dp.callback_query_handler(text='btn2')
 async def btn2_pressed(message):
-    if not is_answer_correct(2, message.from_user.username):
+    if not is_answer_correct(2, message.from_user.username) and db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) != 0:
         await show_reply(message)
-    await next_question(message)
+        await next_question(message)
+    else:
+        db.change_current_question_id(message.from_user.username)
+        await next_question(message)
 
 
 @dp.callback_query_handler(text='btn3')
 async def btn3_pressed(message):
-    if not is_answer_correct(3, message.from_user.username):
+    if not is_answer_correct(3, message.from_user.username) and db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) != 0:
         await show_reply(message)
-    await next_question(message)
+        await next_question(message)
+    else:
+        db.change_current_question_id(message.from_user.username)
+        await next_question(message)
 
 
 @dp.callback_query_handler(text='btn4')
 async def btn4_pressed(message):
-    if not is_answer_correct(4, message.from_user.username):
+    if not is_answer_correct(4, message.from_user.username) and db.get_number_of_variants(db.get_current_question_id(message.from_user.username)) != 0:
         await show_reply(message)
-    await next_question(message)
+        await next_question(message)
+    else:
+        db.change_current_question_id(message.from_user.username)
+        await next_question(message)
 
 
 # Not used. why?

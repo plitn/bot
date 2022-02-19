@@ -17,7 +17,7 @@ class Database:
     # Adds user
     def add_user(self, user_id):
         with self.connection:
-            return self.cursor.execute('INSERT INTO users (tg_username) VALUES (?)', str(user_id))
+            return self.cursor.execute('INSERT INTO users (tg_username, current_question) VALUES (?, ?)', [str(user_id), str(-1)])
 
     # Gets ID of user's current question
     def get_current_question_id(self, user_id):
@@ -82,3 +82,7 @@ class Database:
     def check_max_id(self):
         with self.connection:
             return self.cursor.execute('SELECT MAX(id) FROM questions').fetchone()[0]
+
+    def restart_questions(self, user_id):
+        with self.connection:
+            self.cursor.execute('UPDATE users SET current_question = -1')
