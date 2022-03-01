@@ -7,7 +7,7 @@ from aiogram.utils import executor
 import markup
 
 
-TOKEN = '5250676031:AAH5cZ7YFzDdgyBS8ijK0l9AD1FKEVVTbrg'
+TOKEN = 'TOKEN'
 bot = Bot(TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
